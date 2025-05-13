@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>卓番タイムスケジュール</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px;
+      background: #f9f9f9;
+    }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      display: inline-block;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    input {
+      padding: 8px;
+      font-size: 14px;
+      margin: 8px;
+      width: 45%;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 6px 12px;
+      font-size: 14px;
+      margin: 5px;
+      cursor: pointer;
+      background-color: #6db4f7;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+
+    /* シンプルな削除ボタン */
+    .delete-btn {
+      background-color: #e74c3c;
+      color: white;
+      padding: 4px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .delete-btn:hover {
+      background-color: #c0392b;
+    }
+
+    /* 完了ボタン */
+    .complete-btn {
+      background-color: #3f9e6d;
+      color: white;
+      padding: 4px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .complete-btn:hover {
+      background-color: #2f7b52;
+    }
+
+    .result {
+      margin-top: 30px;
+      text-align: left;
+    }
+
+    .card {
+      background-color: #ffffff;
+      padding: 15px 20px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      color: #333;
+    }
+
+    .card p {
+      margin: 4px 0;
+      font-size: 14px;
+      color: #555;
+    }
+
+    .label {
+      font-weight: bold;
+      color: #2c3e50;
+    }
+
+    /* 時間を過ぎた箸休め */
+    .restExpired {
+      background-color: #fcf8e3;
+      border-left: 5px solid #f39c12;
+    }
+
+    /* 時間を過ぎたチェックイット */
+    .checkitExpired {
+      background-color: #d5eaf8;
+      border-left: 5px solid #3498db;
+    }
+
+    /* 完了した箸休め、チェックイットに横線 */
+    .completedRest {
+      text-decoration: line-through;
+      color: #f39c12;
+    }
+
+    .completedCheckit {
+      text-decoration: line-through;
+      color: #3498db;
+    }
+
+    /* ボタン配置を整える */
+    .button-container {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+
+    .button-container button {
+      flex: 1;
+      margin: 3px;
+      max-width: 110px;
+      font-size: 12px;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>卓番タイムスケジュール</h1>
+    <p>卓番と開始時間を入力してください</p>
+    <input type="text" id="tableNumberInput" placeholder="卓番">
+    <input type="time" id="timeInput">
+    <br>
+    <button onclick="addEntry()">追加</button>
+
+    <div class="result" id="resultArea">
+      <h3>登録されたスケジュール：</h3>
+      <div id="cardList"></div>
+    </div>
+  </div>
+
+  <audio id="dingSound" src="ding.mp3" preload="auto"></audio>
+
+  <script>
+    let data = JSON.parse(localStorage.getItem("scheduleData")) || [];
+    const dingSound = document.getElementById("dingSound");
+
+    if (Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+
+    function formatTime(date) {
+      const h = date.getHours().toString().padStart(2, "0");
+      const m = date.getMinutes().toString().padStart(2, "0");
+      return `${h}:${m}`;
+    }
+
+    function addEntry() {
+      const tableNumber = document.getElementById("tableNumberInput").value.trim();
+      const time = document.getElementById("timeInput").value;
+
+      if (!tableNumber || !time) {
+        alert("卓番と開始時間を入力してください。");
+        return;
+      }
+
+      const [hour, minute] = time.split(":").map(Number);
+      const baseDate = new Date();
+      baseDate.setHours(hour);
+      baseDate.setMinutes(minute);
+      baseDate.setSeconds(0);
+
+      const oneHourLater = new Date(baseDate.getTime() + 60 * 60 * 1000);
+      const oneAndHalfHourLater = new Date(baseDate.getTime() + 90 * 60 * 1000);
+
+      const entry = {
+        id: Date.now(), // 固有IDを生成
+        table: tableNumber,
+        start: time,
+        rest: formatTime(oneHourLater),
+        checkit: formatTime(oneAndHalfHourLater),
+        restTime: oneHourLater.getTime(),
+        checkitTime: oneAndHalfHourLater.getTime(),
+        restCompleted: false,  // 完了していない
+        checkitCompleted: false // 完了していない
+      };
+
+      data.push(entry);
+      localStorage.setItem("scheduleData", JSON.stringify(data));
+      updateDisplay();
+
+      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：箸休めの時間です`, oneHourLater.getTime() - Date.now());
+      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：チェックイットの時間です`, oneAndHalfHourLater.getTime() - Date.now());
+
+      document.getElementById("tableNumberInput").value = "";
+      document.getElementById("timeInput").value = "";
+    }
+
+    function updateDisplay() {
+      const cardList = document.getElementById("cardList");
+      cardList.innerHTML = "";
+
+      // 開始時間を基準にソート（昇順）
+      const sortedData = data.sort((a, b) => {
+        const aStartTime = new Date(`1970-01-01T${a.start}:00`).getTime();
+        const bStartTime = new Date(`1970-01-01T${b.start}:00`).getTime();
+        return aStartTime - bStartTime;
+      });
+
+      sortedData.forEach(entry => {
+        const currentTime = Date.now();
+        const isRestExpired = currentTime > entry.restTime && !entry.restCompleted;
+        const isCheckItExpired = currentTime > entry.checkitTime && !entry.checkitCompleted;
+
+        const card = document.createElement("div");
+        card.className = "card" + 
+          (isRestExpired ? " restExpired" : "") + 
+          (isCheckItExpired ? " checkitExpired" : "");
+
+        card.innerHTML = `
+          <h3>卓番：${entry.table}</h3>
+          <p><span class="label">開始時間：</span> ${entry.start}</p>
+          <p><span class="label">箸休め：</span> <span class="${entry.restCompleted ? 'completedRest' : ''}">${entry.rest}</span></p>
+          <p><span class="label">チェックイット：</span> <span class="${entry.checkitCompleted ? 'completedCheckit' : ''}">${entry.checkit}</span></p>
+          <div class="button-container">
+            <button class="delete-btn" onclick="deleteEntry(${entry.id})">削除</button>
+            <button class="complete-btn" onclick="completeRest(${entry.id})">完了</button>
+            <button class="complete-btn" onclick="completeCheckit(${entry.id})">完了</button>
+            <button class="undo-btn" onclick="undoCompletion(${entry.id}, 'rest')">解除</button>
+            <button class="undo-btn" onclick="undoCompletion(${entry.id}, 'checkit')">解除</button>
+          </div>
+        `;
+        cardList.appendChild(card);
+      });
+    }
+
+    function deleteEntry(id) {
+      data = data.filter(entry => entry.id !== id);
+      localStorage.setItem("scheduleData", JSON.stringify(data));
+      updateDisplay();
+    }
+
+    function completeRest(id) {
+      const entry = data.find(e => e.id === id);
+      if (entry) {
+        entry.restCompleted = true;
+        localStorage.setItem("scheduleData", JSON.stringify(data));
+        updateDisplay();
+      }
+    }
+
+    function completeCheckit(id) {
+      const entry = data.find(e => e.id === id);
+      if (entry) {
+        entry.checkitCompleted = true;
+        localStorage.setItem("scheduleData", JSON.stringify(data));
+        updateDisplay();
+      }
+    }
+
+    function undoCompletion(id, type) {
+      const entry = data.find(e => e.id === id);
+      if (entry) {
+        if (type === 'rest') entry.restCompleted = false;
+        if (type === 'checkit') entry.checkitCompleted = false;
+        localStorage.setItem("scheduleData", JSON.stringify(data));
+        updateDisplay();
+      }
+    }
+
+    function scheduleNotificationWithEarlySound(message, delay) {
+      setTimeout(() => {
+        const notification = new Notification(message);
+        dingSound.play();
+      }, delay - 1000); // 1秒前に鳴らす
+    }
+
+    updateDisplay();
+  </script>
+</body>
+</html>
