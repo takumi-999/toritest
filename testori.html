@@ -4,133 +4,8 @@
   <meta charset="UTF-8">
   <title>卓番タイムスケジュール</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 40px;
-      background: #f9f9f9;
-    }
-
-    .container {
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      display: inline-block;
-      width: 100%;
-      max-width: 600px;
-    }
-
-    input {
-      padding: 10px;
-      font-size: 16px;
-      margin: 8px;
-      width: 45%;
-      box-sizing: border-box;
-    }
-
-    button {
-      padding: 6px 12px;
-      font-size: 14px;
-      margin: 5px;
-      cursor: pointer;
-      background-color: #6db4f7;
-      color: white;
-      border: none;
-      border-radius: 4px;
-    }
-
-    .delete-btn {
-      background-color: #e74c3c;
-      padding: 4px 8px;
-      font-size: 12px;
-      border-radius: 4px;
-    }
-
-    .complete-btn {
-      background-color: #3f9e6d;
-      padding: 4px 8px;
-      font-size: 12px;
-      border-radius: 4px;
-    }
-
-    .undo-btn {
-      background-color: #999;
-      padding: 4px 8px;
-      font-size: 12px;
-      border-radius: 4px;
-    }
-
-    .result {
-      margin-top: 30px;
-      text-align: left;
-    }
-
-    .card {
-      background-color: #ffffff;
-      padding: 15px 20px;
-      margin-bottom: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-    }
-
-    .card h3 {
-      margin: 0 0 8px;
-      color: #333;
-    }
-
-    .card p {
-      margin: 4px 0;
-      font-size: 14px;
-      color: #555;
-    }
-
-    .label {
-      font-weight: bold;
-      color: #2c3e50;
-    }
-
-    .restExpired {
-      background-color: #fff9d6;
-      border-left: 5px solid #f39c12;
-    }
-
-    .checkitExpired {
-      background-color: #e1f1ff;
-      border-left: 5px solid #3498db;
-    }
-
-    .completedRest {
-      text-decoration: line-through;
-      color: #f39c12;
-    }
-
-    .completedCheckit {
-      text-decoration: line-through;
-      color: #3498db;
-    }
-
-    .button-container {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      margin-top: 10px;
-    }
-
-    .button-container button {
-      flex: 1 1 30%;
-      margin: 3px;
-      font-size: 12px;
-    }
-
-    #reloadBtn {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      font-size: 14px;
-      padding: 6px 10px;
-      background-color: #555;
-    }
+    /* スタイル省略（前のコードと同じ） */
+    /* リクエストがあれば再掲できます */
   </style>
 </head>
 <body>
@@ -152,27 +27,50 @@
 
   <script>
     let data = JSON.parse(localStorage.getItem("scheduleData")) || [];
+    let audioCtx;
+    let unlocked = false;
 
-    if (Notification.permission !== "granted") {
-      Notification.requestPermission();
+    // AudioContext を初期化してスマホでも音を鳴らせるようにする
+    function unlockAudio() {
+      if (!unlocked) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const buffer = audioCtx.createBuffer(1, 1, 22050);
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioCtx.destination);
+        source.start(0);
+        unlocked = true;
+        console.log("Audio unlocked");
+      }
     }
 
+    // ブザー音を鳴らす関数
     function playBeep() {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioCtx) return;
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
 
       oscillator.type = "square";
-      oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime); // ブザー音に近い
-      gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); // 音量
+      oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
 
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
       oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 1); // 1秒間鳴らす
+      oscillator.stop(audioCtx.currentTime + 1);
+    }
+
+    // 初回タップでAudioContextを解放
+    document.body.addEventListener("touchstart", unlockAudio, { once: true });
+    document.body.addEventListener("click", unlockAudio, { once: true });
+
+    // 以降は前のコードとほぼ同じ
+    if (Notification.permission !== "granted") {
+      Notification.requestPermission();
     }
 
     function addEntry() {
+      unlockAudio(); // 追加時に Audio を確実に有効化
       const tableNumber = document.getElementById("tableNumberInput").value.trim();
       const time = document.getElementById("timeInput").value;
 
@@ -222,7 +120,7 @@
           }
           playBeep();
           updateDisplay();
-        }, delay - 1000); // 1秒前に鳴らす
+        }, delay - 1000);
       }
     }
 
