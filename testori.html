@@ -40,7 +40,6 @@
       border-radius: 4px;
     }
 
-    /* シンプルな削除ボタン */
     .delete-btn {
       background-color: #e74c3c;
       color: white;
@@ -54,7 +53,6 @@
       background-color: #c0392b;
     }
 
-    /* 完了ボタン */
     .complete-btn {
       background-color: #3f9e6d;
       color: white;
@@ -97,19 +95,16 @@
       color: #2c3e50;
     }
 
-    /* 時間を過ぎた箸休め */
     .restExpired {
       background-color: #fcf8e3;
       border-left: 5px solid #f39c12;
     }
 
-    /* 時間を過ぎたチェックイット */
     .checkitExpired {
       background-color: #d5eaf8;
       border-left: 5px solid #3498db;
     }
 
-    /* 完了した箸休め、チェックイットに横線 */
     .completedRest {
       text-decoration: line-through;
       color: #f39c12;
@@ -120,7 +115,6 @@
       color: #3498db;
     }
 
-    /* ボタン配置を整える */
     .button-container {
       display: flex;
       justify-content: space-between;
@@ -155,14 +149,12 @@
     let data = JSON.parse(localStorage.getItem("scheduleData")) || [];
     let audioContext;
 
-    // 音声を初期化する関数
     function initAudioContext() {
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
     }
 
-    // 音を鳴らす関数
     function playDingSound() {
       if (!audioContext) return;
 
@@ -179,13 +171,11 @@
       osc.stop(audioContext.currentTime + 0.3);
     }
 
-    // ユーザーが操作を始めたときに呼ばれる関数
     function onUserStart() {
-      initAudioContext();  // 音声をスマホで有効にする
+      initAudioContext();
       addEntry();
     }
 
-    // 新しいエントリーを追加する関数
     function addEntry() {
       const tableNumber = document.getElementById("tableNumberInput").value.trim();
       const time = document.getElementById("timeInput").value;
@@ -243,7 +233,6 @@
       }, delay);
     }
 
-    // 画面に表示を更新する関数
     function updateDisplay() {
       const cardList = document.getElementById("cardList");
       cardList.innerHTML = "";
@@ -277,14 +266,12 @@
       });
     }
 
-    // エントリーを削除する関数
     function deleteEntry(id) {
       data = data.filter(entry => entry.id !== id);
       localStorage.setItem("scheduleData", JSON.stringify(data));
       updateDisplay();
     }
 
-    // 箸休め完了にする関数
     function completeRest(id) {
       const entry = data.find(e => e.id === id);
       if (entry) {
@@ -294,7 +281,6 @@
       }
     }
 
-    // Q完了にする関数
     function completeCheckit(id) {
       const entry = data.find(e => e.id === id);
       if (entry) {
@@ -304,7 +290,6 @@
       }
     }
 
-    // 完了解除する関数
     function undoCompletion(id, type) {
       const entry = data.find(e => e.id === id);
       if (entry) {
@@ -315,12 +300,10 @@
       }
     }
 
-    // 通知の権限をリクエスト
     if (Notification.permission !== "granted") {
       Notification.requestPermission();
     }
 
-    // ページをリロードしてもデータを維持する
     updateDisplay();
   </script>
 </body>
