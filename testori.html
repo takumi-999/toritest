@@ -7,13 +7,13 @@
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      padding: 20px;
+      padding: 40px;
       background: #f9f9f9;
     }
 
     .container {
       background: white;
-      padding: 20px;
+      padding: 30px;
       border-radius: 12px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
       display: inline-block;
@@ -42,34 +42,40 @@
 
     .delete-btn {
       background-color: #e74c3c;
+      padding: 4px 8px;
       font-size: 12px;
+      border-radius: 4px;
     }
 
     .complete-btn {
       background-color: #3f9e6d;
+      padding: 4px 8px;
       font-size: 12px;
+      border-radius: 4px;
     }
 
     .undo-btn {
       background-color: #999;
+      padding: 4px 8px;
       font-size: 12px;
+      border-radius: 4px;
     }
 
     .result {
-      margin-top: 20px;
+      margin-top: 30px;
       text-align: left;
     }
 
     .card {
       background-color: #ffffff;
-      padding: 12px;
-      margin-bottom: 12px;
+      padding: 15px 20px;
+      margin-bottom: 15px;
       border-radius: 8px;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
     }
 
     .card h3 {
-      margin: 0 0 6px;
+      margin: 0 0 8px;
       color: #333;
     }
 
@@ -85,13 +91,13 @@
     }
 
     .restExpired {
-      background-color: #fef9e3;
-      border-left: 4px solid #f1c40f;
+      background-color: #fff9d6;
+      border-left: 5px solid #f39c12;
     }
 
     .checkitExpired {
-      background-color: #eaf4fb;
-      border-left: 4px solid #3498db;
+      background-color: #e1f1ff;
+      border-left: 5px solid #3498db;
     }
 
     .completedRest {
@@ -116,11 +122,23 @@
       margin: 3px;
       font-size: 12px;
     }
+
+    #reloadBtn {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      font-size: 14px;
+      padding: 6px 10px;
+      background-color: #555;
+    }
   </style>
 </head>
 <body>
+  <button id="reloadBtn" onclick="location.reload()">リロード</button>
+
   <div class="container">
     <h1>卓番タイムスケジュール</h1>
+    <p>卓番と開始時間を入力してください</p>
     <input type="text" id="tableNumberInput" placeholder="卓番">
     <input type="time" id="timeInput">
     <br>
@@ -132,31 +150,34 @@
     </div>
   </div>
 
-  <audio id="dingSound" preload="auto">
-    <source src="data:audio/mp3;base64,//uQxAAAAAAAA..." type="audio/mp3">
-    <!-- 簡易ビープ音のデータURL（省略していますがここに短い音のBase64を入れる） -->
-  </audio>
-
   <script>
     let data = JSON.parse(localStorage.getItem("scheduleData")) || [];
-    const dingSound = document.getElementById("dingSound");
 
     if (Notification.permission !== "granted") {
       Notification.requestPermission();
     }
 
-    function formatTime(date) {
-      const h = date.getHours().toString().padStart(2, "0");
-      const m = date.getMinutes().toString().padStart(2, "0");
-      return `${h}:${m}`;
+    function playBeep() {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.type = "square";
+      oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime); // ブザー音に近い
+      gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); // 音量
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 1); // 1秒間鳴らす
     }
 
     function addEntry() {
-      const table = document.getElementById("tableNumberInput").value.trim();
+      const tableNumber = document.getElementById("tableNumberInput").value.trim();
       const time = document.getElementById("timeInput").value;
 
-      if (!table || !time) {
-        alert("卓番と開始時間を入力してください");
+      if (!tableNumber || !time) {
+        alert("卓番と開始時間を入力してください。");
         return;
       }
 
@@ -166,42 +187,42 @@
       baseDate.setMinutes(minute);
       baseDate.setSeconds(0);
 
-      const restTime = new Date(baseDate.getTime() + 60 * 60 * 1000);
-      const checkitTime = new Date(baseDate.getTime() + 90 * 60 * 1000);
+      const oneHourLater = new Date(baseDate.getTime() + 60 * 60 * 1000);
+      const oneAndHalfHourLater = new Date(baseDate.getTime() + 90 * 60 * 1000);
 
       const entry = {
         id: Date.now(),
-        table,
+        table: tableNumber,
         start: time,
-        rest: formatTime(restTime),
-        checkit: formatTime(checkitTime),
-        restTime: restTime.getTime(),
-        checkitTime: checkitTime.getTime(),
+        rest: formatTime(oneHourLater),
+        checkit: formatTime(oneAndHalfHourLater),
+        restTime: oneHourLater.getTime(),
+        checkitTime: oneAndHalfHourLater.getTime(),
         restCompleted: false,
         checkitCompleted: false
       };
 
       data.push(entry);
       localStorage.setItem("scheduleData", JSON.stringify(data));
-      scheduleNotification(entry);
       updateDisplay();
+
+      scheduleNotification(`卓番 ${tableNumber}：箸休めの時間です`, oneHourLater.getTime());
+      scheduleNotification(`卓番 ${tableNumber}：チェックイットの時間です`, oneAndHalfHourLater.getTime());
+
+      document.getElementById("tableNumberInput").value = "";
+      document.getElementById("timeInput").value = "";
     }
 
-    function scheduleNotification(entry) {
-      const now = Date.now();
-
-      if (entry.restTime > now) {
+    function scheduleNotification(message, timestamp) {
+      const delay = timestamp - Date.now();
+      if (delay > 0) {
         setTimeout(() => {
-          new Notification(`卓番 ${entry.table}：箸休めの時間です`);
-          dingSound.play();
-        }, entry.restTime - now - 1000);
-      }
-
-      if (entry.checkitTime > now) {
-        setTimeout(() => {
-          new Notification(`卓番 ${entry.table}：チェックイットの時間です`);
-          dingSound.play();
-        }, entry.checkitTime - now - 1000);
+          if (Notification.permission === "granted") {
+            new Notification(message);
+          }
+          playBeep();
+          updateDisplay();
+        }, delay - 1000); // 1秒前に鳴らす
       }
     }
 
@@ -209,24 +230,22 @@
       const cardList = document.getElementById("cardList");
       cardList.innerHTML = "";
 
-      const now = Date.now();
+      data.sort((a, b) => new Date(`1970-01-01T${a.start}`) - new Date(`1970-01-01T${b.start}`));
 
-      data.sort((a, b) => {
-        return new Date(`1970-01-01T${a.start}`) - new Date(`1970-01-01T${b.start}`);
-      });
+      const now = Date.now();
 
       data.forEach(entry => {
         const isRestExpired = now > entry.restTime && !entry.restCompleted;
-        const isCheckitExpired = now > entry.checkitTime && !entry.checkitCompleted;
+        const isCheckItExpired = now > entry.checkitTime && !entry.checkitCompleted;
 
         const card = document.createElement("div");
-        card.className = "card" + 
-          (isRestExpired ? " restExpired" : "") + 
-          (isCheckitExpired ? " checkitExpired" : "");
+        card.className = "card" +
+          (isRestExpired ? " restExpired" : "") +
+          (isCheckItExpired ? " checkitExpired" : "");
 
         card.innerHTML = `
           <h3>卓番：${entry.table}</h3>
-          <p><span class="label">開始：</span>${entry.start}</p>
+          <p><span class="label">開始時間：</span> ${entry.start}</p>
           <p><span class="label">箸休め：</span> <span class="${entry.restCompleted ? 'completedRest' : ''}">${entry.rest}</span></p>
           <p><span class="label">チェックイット：</span> <span class="${entry.checkitCompleted ? 'completedCheckit' : ''}">${entry.checkit}</span></p>
           <div class="button-container">
@@ -242,7 +261,7 @@
     }
 
     function deleteEntry(id) {
-      data = data.filter(e => e.id !== id);
+      data = data.filter(entry => entry.id !== id);
       localStorage.setItem("scheduleData", JSON.stringify(data));
       updateDisplay();
     }
@@ -268,19 +287,20 @@
     function undoCompletion(id, type) {
       const entry = data.find(e => e.id === id);
       if (entry) {
-        if (type === "rest") entry.restCompleted = false;
-        if (type === "checkit") entry.checkitCompleted = false;
+        if (type === 'rest') entry.restCompleted = false;
+        if (type === 'checkit') entry.checkitCompleted = false;
         localStorage.setItem("scheduleData", JSON.stringify(data));
         updateDisplay();
       }
     }
 
-    // 初回表示
-    data.forEach(scheduleNotification);
-    updateDisplay();
+    function formatTime(date) {
+      const h = date.getHours().toString().padStart(2, "0");
+      const m = date.getMinutes().toString().padStart(2, "0");
+      return `${h}:${m}`;
+    }
 
-    // 定期的に自動更新（5秒ごと）
-    setInterval(updateDisplay, 5000);
+    updateDisplay();
   </script>
 </body>
 </html>
