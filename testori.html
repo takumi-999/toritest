@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <title>卓番タイムスケジュール</title>
   <style>
+    /* （省略せずに全文が必要な場合は言ってください） */
     body {
       font-family: Arial, sans-serif;
       text-align: center;
       padding: 40px;
       background: #f9f9f9;
     }
-
     .container {
       background: white;
       padding: 30px;
@@ -20,120 +20,56 @@
       width: 100%;
       max-width: 600px;
     }
-
-    input {
+    input, button {
       padding: 8px;
       font-size: 14px;
       margin: 8px;
       width: 45%;
-      box-sizing: border-box;
     }
-
     button {
-      padding: 6px 12px;
-      font-size: 14px;
-      margin: 5px;
       cursor: pointer;
       background-color: #6db4f7;
       color: white;
       border: none;
       border-radius: 4px;
     }
-
-    /* シンプルな削除ボタン */
     .delete-btn {
       background-color: #e74c3c;
       color: white;
-      padding: 4px 8px;
-      font-size: 12px;
-      border-radius: 4px;
-      cursor: pointer;
     }
-
-    .delete-btn:hover {
-      background-color: #c0392b;
-    }
-
-    /* 完了ボタン */
     .complete-btn {
       background-color: #3f9e6d;
-      color: white;
-      padding: 4px 8px;
-      font-size: 12px;
-      border-radius: 4px;
-      cursor: pointer;
     }
-
-    .complete-btn:hover {
-      background-color: #2f7b52;
+    .undo-btn {
+      background-color: #aaa;
     }
-
     .result {
       margin-top: 30px;
       text-align: left;
     }
-
     .card {
-      background-color: #ffffff;
-      padding: 15px 20px;
+      background-color: #fff;
+      padding: 15px;
       margin-bottom: 15px;
       border-radius: 8px;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
     }
-
-    .card h3 {
-      margin: 0 0 8px;
-      color: #333;
-    }
-
-    .card p {
-      margin: 4px 0;
-      font-size: 14px;
-      color: #555;
-    }
-
-    .label {
-      font-weight: bold;
-      color: #2c3e50;
-    }
-
-    /* 時間を過ぎた箸休め */
     .restExpired {
       background-color: #fcf8e3;
       border-left: 5px solid #f39c12;
     }
-
-    /* 時間を過ぎたチェックイット */
     .checkitExpired {
       background-color: #d5eaf8;
       border-left: 5px solid #3498db;
     }
-
-    /* 完了した箸休め、チェックイットに横線 */
     .completedRest {
       text-decoration: line-through;
       color: #f39c12;
     }
-
     .completedCheckit {
       text-decoration: line-through;
       color: #3498db;
     }
-
-    /* ボタン配置を整える */
-    .button-container {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 10px;
-    }
-
-    .button-container button {
-      flex: 1;
-      margin: 3px;
-      max-width: 110px;
-      font-size: 12px;
-    }
-
   </style>
 </head>
 <body>
@@ -155,47 +91,60 @@
     let data = JSON.parse(localStorage.getItem("scheduleData")) || [];
     let audioContext;
 
-    // 音声を初期化する関数
     function initAudioContext() {
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
     }
 
-    // 音を鳴らす関数
     function playDingSound() {
-        if (!audioContext) return;
-
-        const osc = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-
-        osc.type = "square"; // よりブザーっぽい音に
-        osc.frequency.setValueAtTime(1200, audioContext.currentTime); // 音程を少し高めに
-        gain.gain.setValueAtTime(0.5, audioContext.currentTime); // 音量を大きく
-
-        osc.connect(gain);
-        gain.connect(audioContext.destination);
-        osc.start();
-        osc.stop(audioContext.currentTime + 1.0); // 鳴る時間を長く（1秒）
-}
-
-
-    // ユーザーが操作を始めたときに呼ばれる関数
-    function onUserStart() {
-      initAudioContext();  // 音声をスマホで有効にする
-      addEntry();
+      if (!audioContext) return;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(1200, audioContext.currentTime);
+      gain.gain.setValueAtTime(1, audioContext.currentTime);
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      osc.start();
+      osc.stop(audioContext.currentTime + 1.0);
     }
 
-    // 新しいエントリーを追加する関数
-    function addEntry() {
-      const tableNumber = document.getElementById("tableNumberInput").value.trim();
-      const time = document.getElementById("timeInput").value;
+    function onUserStart() {
+      initAudioContext();
 
-      if (!tableNumber || !time) {
-        alert("卓番と開始時間を入力してください。");
+      const tableInput = document.getElementById("tableNumberInput").value.trim();
+      const timeInput = document.getElementById("timeInput").value;
+
+      if (!tableInput || !timeInput) {
+        // 入力がない場合、ダミーで追加 → 即削除
+        const dummyId = Date.now();
+        const dummy = {
+          id: dummyId,
+          table: "50",
+          start: "00:00",
+          rest: "01:00",
+          checkit: "01:30",
+          restTime: new Date().getTime() + 60 * 60 * 1000,
+          checkitTime: new Date().getTime() + 90 * 60 * 1000,
+          restCompleted: false,
+          checkitCompleted: false
+        };
+        data.push(dummy);
+        localStorage.setItem("scheduleData", JSON.stringify(data));
+        updateDisplay();
+
+        // 即削除
+        setTimeout(() => {
+          deleteEntry(dummyId);
+        }, 100); // 少し待ってから削除
         return;
       }
 
+      addEntry(tableInput, timeInput);
+    }
+
+    function addEntry(tableNumber, time) {
       const [hour, minute] = time.split(":").map(Number);
       const baseDate = new Date();
       baseDate.setHours(hour, minute, 0, 0);
@@ -244,7 +193,6 @@
       }, delay);
     }
 
-    // 画面に表示を更新する関数
     function updateDisplay() {
       const cardList = document.getElementById("cardList");
       cardList.innerHTML = "";
@@ -266,26 +214,24 @@
           <p><span class="label">開始時間：</span> ${entry.start}</p>
           <p><span class="label">箸休め：</span> <span class="${entry.restCompleted ? 'completedRest' : ''}">${entry.rest}</span></p>
           <p><span class="label">チェックイット：</span> <span class="${entry.checkitCompleted ? 'completedCheckit' : ''}">${entry.checkit}</span></p>
-          <div class="button-container">
-            <button class="delete-btn" onclick="deleteEntry(${entry.id})">削除</button>
+          <div>
             <button class="complete-btn" onclick="completeRest(${entry.id})">箸完了</button>
             <button class="complete-btn" onclick="completeCheckit(${entry.id})">Q完了</button>
             <button class="undo-btn" onclick="undoCompletion(${entry.id}, 'rest')">箸解除</button>
             <button class="undo-btn" onclick="undoCompletion(${entry.id}, 'checkit')">Q解除</button>
+            <button class="delete-btn" onclick="deleteEntry(${entry.id})">削除</button>
           </div>
         `;
         cardList.appendChild(card);
       });
     }
 
-    // エントリーを削除する関数
     function deleteEntry(id) {
       data = data.filter(entry => entry.id !== id);
       localStorage.setItem("scheduleData", JSON.stringify(data));
       updateDisplay();
     }
 
-    // 箸休め完了にする関数
     function completeRest(id) {
       const entry = data.find(e => e.id === id);
       if (entry) {
@@ -295,7 +241,6 @@
       }
     }
 
-    // Q完了にする関数
     function completeCheckit(id) {
       const entry = data.find(e => e.id === id);
       if (entry) {
@@ -305,7 +250,6 @@
       }
     }
 
-    // 完了解除する関数
     function undoCompletion(id, type) {
       const entry = data.find(e => e.id === id);
       if (entry) {
@@ -316,12 +260,10 @@
       }
     }
 
-    // 通知の権限をリクエスト
     if (Notification.permission !== "granted") {
       Notification.requestPermission();
     }
 
-    // ページをリロードしてもデータを維持する
     updateDisplay();
   </script>
 </body>
