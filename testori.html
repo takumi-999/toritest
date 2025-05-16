@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>卓番タイムスケジュール</title>
   <style>
-    /* （省略せずに全文が必要な場合は言ってください） */
     body {
       font-family: Arial, sans-serif;
       text-align: center;
@@ -133,11 +132,9 @@
         data.push(dummy);
         localStorage.setItem("scheduleData", JSON.stringify(data));
         updateDisplay();
-
-        // 即削除
         setTimeout(() => {
           deleteEntry(dummyId);
-        }, 100); // 少し待ってから削除
+        }, 100);
         return;
       }
 
@@ -168,8 +165,8 @@
       localStorage.setItem("scheduleData", JSON.stringify(data));
       updateDisplay();
 
-      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：箸休めの時間です`, oneHourLater.getTime() - Date.now());
-      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：チェックイットの時間です`, oneAndHalfHourLater.getTime() - Date.now());
+      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：箸休めの時間です`, entry.restTime - Date.now());
+      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：チェックイットの時間です`, entry.checkitTime - Date.now());
 
       document.getElementById("tableNumberInput").value = "";
       document.getElementById("timeInput").value = "";
@@ -182,10 +179,18 @@
     }
 
     function scheduleNotificationWithEarlySound(message, delay) {
-      if (delay <= 1000) return;
-      setTimeout(() => {
+      if (delay <= 0) {
         playDingSound();
-      }, delay - 1000);
+        new Notification(message);
+        updateDisplay();
+        return;
+      }
+
+      if (delay > 1000) {
+        setTimeout(() => {
+          playDingSound();
+        }, delay - 1000);
+      }
 
       setTimeout(() => {
         new Notification(message);
@@ -204,10 +209,12 @@
         const isRestExpired = now > entry.restTime && !entry.restCompleted;
         const isCheckItExpired = now > entry.checkitTime && !entry.checkitCompleted;
 
+        let cardClasses = "card";
+        if (isRestExpired) cardClasses += " restExpired";
+        if (isCheckItExpired) cardClasses += " checkitExpired";
+
         const card = document.createElement("div");
-        card.className = "card" +
-          (isRestExpired ? " restExpired" : "") +
-          (isCheckItExpired ? " checkitExpired" : "");
+        card.className = cardClasses;
 
         card.innerHTML = `
           <h3>卓番：${entry.table}</h3>
