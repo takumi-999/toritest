@@ -2,82 +2,138 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>卓番スケジュール</title>
+  <title>卓番タイムスケジュール</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f0f0f0;
-      padding: 30px;
+      padding: 40px;
+      background: #f9f9f9;
       text-align: center;
     }
-    .input-area {
-      background: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      margin-bottom: 30px;
-      display: inline-block;
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     input, button {
       padding: 8px;
       font-size: 14px;
       margin: 8px;
+      width: 45%;
+      box-sizing: border-box;
     }
     button {
-      background-color: #3498db;
+      cursor: pointer;
+      background-color: #6db4f7;
       color: white;
       border: none;
       border-radius: 4px;
-      cursor: pointer;
     }
-    .grid {
+    #board {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 15px;
-      max-width: 800px;
-      margin: 0 auto;
+      grid-gap: 15px;
+      margin-top: 30px;
     }
     .room {
-      background: #fff;
-      border-radius: 8px;
+      background: #f5f5f5;
+      border-radius: 10px;
       padding: 15px;
-      min-height: 150px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      min-height: 140px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       position: relative;
+      transition: background-color 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
-    .room h3 {
-      margin-top: 0;
+    .room.empty {
+      background: #eee;
     }
-    .bold-time {
+    .room.rest-expired {
+      background-color: #fcf8e3; /* 黄色っぽい */
+      border-left: 5px solid #f39c12;
+    }
+    .room.checkit-expired {
+      background-color: #d5eaf8; /* 青っぽい */
+      border-left: 5px solid #3498db;
+    }
+    .room.rest-and-checkit-expired {
+      background-color: #f5d6d6; /* 赤っぽい */
+      border-left: 5px solid #e74c3c;
+    }
+    h2.room-number {
+      margin: 0 0 10px 0;
       font-weight: bold;
-      font-size: 18px;
+      font-size: 20px;
     }
-    .button-group {
+    .time-info {
+      font-size: 14px;
+      margin: 2px 0;
+    }
+    .time-info.rest, .time-info.checkit {
+      font-weight: bold;
+      font-size: 16px;
+    }
+    .time-info.rest.completed, .time-info.checkit.completed {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+    .buttons {
       margin-top: 10px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
     }
-    .delete-btn {
+    .btn {
+      flex: 1 1 40%;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn.complete-rest {
+      background-color: #f39c12;
+    }
+    .btn.complete-checkit {
+      background-color: #3498db;
+    }
+    .btn.undo {
+      background-color: #aaa;
+      color: #fff;
+    }
+    .btn.delete {
       background-color: #e74c3c;
     }
-    .complete-btn {
-      background-color: #2ecc71;
-    }
-    .undo-btn {
-      background-color: #95a5a6;
+    /* 空白用の透明の部屋 */
+    .room.blank {
+      background: transparent;
+      box-shadow: none;
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
-  <div class="input-area">
-    <h1>卓番スケジュール</h1>
-    <input type="text" id="tableNumberInput" placeholder="卓番">
-    <input type="time" id="timeInput">
+  <div class="container">
+    <h1>卓番タイムスケジュール</h1>
+    <p>卓番と開始時間を入力してください</p>
+    <input type="text" id="tableNumberInput" placeholder="卓番" />
+    <input type="time" id="timeInput" />
+    <br />
     <button onclick="onUserStart()">追加</button>
+
+    <div id="board"></div>
   </div>
 
-  <div class="grid" id="roomGrid"></div>
-
   <script>
-    const layout = [
+    // 卓番配置の行列に対応する配列（空白はnull）
+    const tableLayout = [
       [1, 2, 3],
       [4, 11, 12],
       [13, 14, 15],
@@ -91,6 +147,14 @@
     let data = JSON.parse(localStorage.getItem("scheduleData")) || [];
     let audioContext;
 
+    // フォーマット関数（Date→HH:MM）
+    function formatTime(date) {
+      const h = date.getHours().toString().padStart(2, "0");
+      const m = date.getMinutes().toString().padStart(2, "0");
+      return `${h}:${m}`;
+    }
+
+    // 初期化
     function initAudioContext() {
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -110,150 +174,226 @@
       osc.stop(audioContext.currentTime + 1.0);
     }
 
+    // 追加処理
     function onUserStart() {
       initAudioContext();
       const tableInput = document.getElementById("tableNumberInput").value.trim();
       const timeInput = document.getElementById("timeInput").value;
+
+      // 卓番・時間が両方空欄の場合：ダミーデータ追加→即削除
+      if (!tableInput && !timeInput) {
+        const dummyId = Date.now();
+        const dummyStart = new Date();
+        dummyStart.setHours(0, 0, 0, 0); // 00:00
+        const dummyRest = new Date(dummyStart.getTime() + 75 * 60 * 1000); // 75分後
+        const dummyCheck = new Date(dummyStart.getTime() + 90 * 60 * 1000); // 90分後
+
+        const dummy = {
+          id: dummyId,
+          table: "50",
+          start: "00:00",
+          rest: formatTime(dummyRest),
+          checkit: formatTime(dummyCheck),
+          restTime: dummyRest.getTime(),
+          checkitTime: dummyCheck.getTime(),
+          restCompleted: false,
+          checkitCompleted: false
+        };
+
+        data.push(dummy);
+        localStorage.setItem("scheduleData", JSON.stringify(data));
+        updateDisplay();
+
+        setTimeout(() => {
+          deleteEntry(dummyId);
+        }, 100);
+
+        return;
+      }
+
+      // 片方だけ空欄の場合は何もしない
       if (!tableInput || !timeInput) return;
 
       addEntry(tableInput, timeInput);
     }
 
+    // 新規データ追加
     function addEntry(tableNumber, time) {
       const [hour, minute] = time.split(":").map(Number);
       const baseDate = new Date();
       baseDate.setHours(hour, minute, 0, 0);
 
-      const restDate = new Date(baseDate.getTime() + 75 * 60 * 1000);
-      const checkDate = new Date(baseDate.getTime() + 90 * 60 * 1000);
+      const restDate = new Date(baseDate.getTime() + 75 * 60 * 1000); // 75分後
+      const checkitDate = new Date(baseDate.getTime() + 90 * 60 * 1000); // 90分後
 
       const entry = {
         id: Date.now(),
         table: tableNumber,
         start: time,
         rest: formatTime(restDate),
-        checkit: formatTime(checkDate),
+        checkit: formatTime(checkitDate),
         restTime: restDate.getTime(),
-        checkitTime: checkDate.getTime(),
+        checkitTime: checkitDate.getTime(),
         restCompleted: false,
         checkitCompleted: false
       };
 
-      data.push(entry);
+      // すでに同じtable番号のデータがあれば上書き
+      const existingIndex = data.findIndex(d => d.table === tableNumber);
+      if (existingIndex >= 0) {
+        data[existingIndex] = entry;
+      } else {
+        data.push(entry);
+      }
       localStorage.setItem("scheduleData", JSON.stringify(data));
       updateDisplay();
 
       scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：箸休めの時間です`, entry.restTime - Date.now());
       scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：チェックイットの時間です`, entry.checkitTime - Date.now());
 
+      // 入力欄クリア
       document.getElementById("tableNumberInput").value = "";
       document.getElementById("timeInput").value = "";
     }
 
-    function formatTime(date) {
-      const h = date.getHours().toString().padStart(2, "0");
-      const m = date.getMinutes().toString().padStart(2, "0");
-      return `${h}:${m}`;
-    }
-
+    // 通知と効果音セット（1秒前に効果音）
     function scheduleNotificationWithEarlySound(message, delay) {
       if (delay <= 0) {
         playDingSound();
-        new Notification(message);
+        if (Notification.permission === "granted") {
+          new Notification(message);
+        }
         updateDisplay();
         return;
       }
-
       if (delay > 1000) {
-        setTimeout(() => {
-          playDingSound();
-        }, delay - 1000);
+        setTimeout(() => playDingSound(), delay - 1000);
       }
-
       setTimeout(() => {
-        new Notification(message);
+        if (Notification.permission === "granted") {
+          new Notification(message);
+        }
         updateDisplay();
       }, delay);
     }
 
-    function updateDisplay() {
-      const grid = document.getElementById("roomGrid");
-      grid.innerHTML = "";
-
-      layout.forEach(row => {
-        row.forEach(tableNum => {
-          const div = document.createElement("div");
-          div.className = "room";
-
-          if (tableNum === null) {
-            grid.appendChild(div);
-            return;
-          }
-
-          const entry = data.find(e => e.table === String(tableNum));
-          div.innerHTML = `<h3>卓番：${tableNum}</h3>`;
-
-          if (entry) {
-            div.innerHTML += `
-              <p>開始時間：${entry.start}</p>
-              <p>箸休め：<span class="bold-time ${entry.restCompleted ? 'done' : ''}">${entry.rest}</span></p>
-              <p>チェックイット：<span class="bold-time ${entry.checkitCompleted ? 'done' : ''}">${entry.checkit}</span></p>
-              <div class="button-group">
-                <button class="complete-btn" onclick="completeRest(${entry.id})">箸完了</button>
-                <button class="complete-btn" onclick="completeCheckit(${entry.id})">Q完了</button>
-                <button class="undo-btn" onclick="undoCompletion(${entry.id}, 'rest')">箸解除</button>
-                <button class="undo-btn" onclick="undoCompletion(${entry.id}, 'checkit')">Q解除</button>
-                <button class="delete-btn" onclick="deleteEntry(${entry.id})">削除</button>
-              </div>
-            `;
-          } else {
-            div.innerHTML += `<p style="color:#aaa;">まだ登録されていません</p>`;
-          }
-
-          grid.appendChild(div);
-        });
-      });
-    }
-
+    // 削除
     function deleteEntry(id) {
-      data = data.filter(e => e.id !== id);
+      data = data.filter(entry => entry.id !== id);
       localStorage.setItem("scheduleData", JSON.stringify(data));
       updateDisplay();
     }
 
+    // 箸休め完了
     function completeRest(id) {
       const entry = data.find(e => e.id === id);
-      if (entry) {
-        entry.restCompleted = true;
-        localStorage.setItem("scheduleData", JSON.stringify(data));
-        updateDisplay();
-      }
+      if (!entry) return;
+      entry.restCompleted = true;
+      localStorage.setItem("scheduleData", JSON.stringify(data));
+      updateDisplay();
     }
 
+    // チェックイット完了
     function completeCheckit(id) {
       const entry = data.find(e => e.id === id);
-      if (entry) {
-        entry.checkitCompleted = true;
-        localStorage.setItem("scheduleData", JSON.stringify(data));
-        updateDisplay();
-      }
+      if (!entry) return;
+      entry.checkitCompleted = true;
+      localStorage.setItem("scheduleData", JSON.stringify(data));
+      updateDisplay();
     }
 
+    // 完了解除
     function undoCompletion(id, type) {
       const entry = data.find(e => e.id === id);
-      if (entry) {
-        if (type === 'rest') entry.restCompleted = false;
-        if (type === 'checkit') entry.checkitCompleted = false;
-        localStorage.setItem("scheduleData", JSON.stringify(data));
-        updateDisplay();
+      if (!entry) return;
+      if (type === "rest") entry.restCompleted = false;
+      if (type === "checkit") entry.checkitCompleted = false;
+      localStorage.setItem("scheduleData", JSON.stringify(data));
+      updateDisplay();
+    }
+
+    // 画面表示更新
+    function updateDisplay() {
+      const board = document.getElementById("board");
+      board.innerHTML = "";
+
+      const now = Date.now();
+
+      // 各卓番ごとに対応するデータを探す（存在すれば入れる）
+      const dataMap = {};
+      data.forEach(d => {
+        dataMap[d.table] = d;
+      });
+
+      // 指定の卓番レイアウトを反映
+      tableLayout.forEach(row => {
+        row.forEach(tableNum => {
+          if (tableNum === null) {
+            // 空白部屋（何も表示しない透明なdiv）
+            const blankDiv = document.createElement("div");
+            blankDiv.className = "room blank";
+            board.appendChild(blankDiv);
+            return;
+          }
+
+          const entry = dataMap[tableNum];
+
+          // 部屋のdiv
+          const roomDiv = document.createElement("div");
+          roomDiv.className = "room";
+
+          if (!entry) {
+            // データなしは空っぽ状態
+            roomDiv.classList.add("empty");
+            roomDiv.innerHTML = `<h2 class="room-number">卓番 ${tableNum}</h2><p>データ未登録</p>`;
+            board.appendChild(roomDiv);
+            return;
+          }
+
+          // 時間判定
+          const restExpired = now > entry.restTime && !entry.restCompleted;
+          const checkitExpired = now > entry.checkitTime && !entry.checkitCompleted;
+
+          // 色分けクラス
+          if (restExpired && checkitExpired) {
+            roomDiv.classList.add("rest-and-checkit-expired");
+          } else if (restExpired) {
+            roomDiv.classList.add("rest-expired");
+          } else if (checkitExpired) {
+            roomDiv.classList.add("checkit-expired");
+          }
+
+          // 中身
+          roomDiv.innerHTML = `
+            <h2 class="room-number">卓番 ${entry.table}</h2>
+            <div class="time-info start">開始時間: ${entry.start}</div>
+            <div class="time-info rest ${entry.restCompleted ? "completed" : ""}">箸休め: ${entry.rest}</div>
+            <div class="time-info checkit ${entry.checkitCompleted ? "completed" : ""}">チェックイット: ${entry.checkit}</div>
+            <div class="buttons">
+              ${entry.restCompleted 
+                ? `<button class="btn undo" onclick="undoCompletion(${entry.id}, 'rest')">箸休め完了取消</button>`
+                : `<button class="btn complete-rest" onclick="completeRest(${entry.id})">箸休め完了</button>`
+              }
+              ${entry.checkitCompleted 
+                ? `<button class="btn undo" onclick="undoCompletion(${entry.id}, 'checkit')">チェックイット完了取消</button>`
+                : `<button class="btn complete-checkit" onclick="completeCheckit(${entry.id})">チェックイット完了</button>`
+              }
+              <button class="btn delete" onclick="deleteEntry(${entry.id})">削除</button>
+            </div>
+          `;
+
+          board.appendChild(roomDiv);
+        });
+      });
+    }
+
+    // 最初の表示・通知許可リクエスト
+    window.onload = () => {
+      updateDisplay();
+      if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+        Notification.requestPermission();
       }
-    }
-
-    if (Notification.permission !== "granted") {
-      Notification.requestPermission();
-    }
-
-    updateDisplay();
+    };
   </script>
 </body>
 </html>
