@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>卓番スケジュール</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      padding: 30px;
+      text-align: center;
+    }
+    .input-area {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+      display: inline-block;
+    }
+    input, button {
+      padding: 8px;
+      font-size: 14px;
+      margin: 8px;
+    }
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .room {
+      background: #fff;
+      border-radius: 8px;
+      padding: 15px;
+      min-height: 150px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      position: relative;
+    }
+    .room h3 {
+      margin-top: 0;
+    }
+    .bold-time {
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .button-group {
+      margin-top: 10px;
+    }
+    .delete-btn {
+      background-color: #e74c3c;
+    }
+    .complete-btn {
+      background-color: #2ecc71;
+    }
+    .undo-btn {
+      background-color: #95a5a6;
+    }
+  </style>
+</head>
+<body>
+  <div class="input-area">
+    <h1>卓番スケジュール</h1>
+    <input type="text" id="tableNumberInput" placeholder="卓番">
+    <input type="time" id="timeInput">
+    <button onclick="onUserStart()">追加</button>
+  </div>
+
+  <div class="grid" id="roomGrid"></div>
+
+  <script>
+    const layout = [
+      [1, 2, 3],
+      [4, 11, 12],
+      [13, 14, 15],
+      [16, 17, null],
+      [21, 22, 23],
+      [24, 25, 31],
+      [32, 33, 41],
+      [42, null, null]
+    ];
+
+    let data = JSON.parse(localStorage.getItem("scheduleData")) || [];
+    let audioContext;
+
+    function initAudioContext() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playDingSound() {
+      if (!audioContext) return;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(1200, audioContext.currentTime);
+      gain.gain.setValueAtTime(1, audioContext.currentTime);
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      osc.start();
+      osc.stop(audioContext.currentTime + 1.0);
+    }
+
+    function onUserStart() {
+      initAudioContext();
+      const tableInput = document.getElementById("tableNumberInput").value.trim();
+      const timeInput = document.getElementById("timeInput").value;
+      if (!tableInput || !timeInput) return;
+
+      addEntry(tableInput, timeInput);
+    }
+
+    function addEntry(tableNumber, time) {
+      const [hour, minute] = time.split(":").map(Number);
+      const baseDate = new Date();
+      baseDate.setHours(hour, minute, 0, 0);
+
+      const restDate = new Date(baseDate.getTime() + 75 * 60 * 1000);
+      const checkDate = new Date(baseDate.getTime() + 90 * 60 * 1000);
+
+      const entry = {
+        id: Date.now(),
+        table: tableNumber,
+        start: time,
+        rest: formatTime(restDate),
+        checkit: formatTime(checkDate),
+        restTime: restDate.getTime(),
+        checkitTime: checkDate.getTime(),
+        restCompleted: false,
+        checkitCompleted: false
+      };
+
+      data.push(entry);
+      localStorage.setItem("scheduleData", JSON.stringify(data));
+      updateDisplay();
+
+      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：箸休めの時間です`, entry.restTime - Date.now());
+      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：チェックイットの時間です`, entry.checkitTime - Date.now());
+
+      document.getElementById("tableNumberInput").value = "";
+      document.getElementById("timeInput").value = "";
+    }
+
+    function formatTime(date) {
+      const h = date.getHours().toString().padStart(2, "0");
+      const m = date.getMinutes().toString().padStart(2, "0");
+      return `${h}:${m}`;
+    }
+
+    function scheduleNotificationWithEarlySound(message, delay) {
+      if (delay <= 0) {
+        playDingSound();
+        new Notification(message);
+        updateDisplay();
+        return;
+      }
+
+      if (delay > 1000) {
+        setTimeout(() => {
+          playDingSound();
+        }, delay - 1000);
+      }
+
+      setTimeout(() => {
+        new Notification(message);
+        updateDisplay();
+      }, delay);
+    }
+
+    function updateDisplay() {
+      const grid = document.getElementById("roomGrid");
+      grid.innerHTML = "";
+
+      layout.forEach(row => {
+        row.forEach(tableNum => {
+          const div = document.createElement("div");
+          div.className = "room";
+
+          if (tableNum === null) {
+            grid.appendChild(div);
+            return;
+          }
+
+          const entry = data.find(e => e.table === String(tableNum));
+          div.innerHTML = `<h3>卓番：${tableNum}</h3>`;
+
+          if (entry) {
+            div.innerHTML += `
+              <p>開始時間：${entry.start}</p>
+              <p>箸休め：<span class="bold-time ${entry.restCompleted ? 'done' : ''}">${entry.rest}</span></p>
+              <p>チェックイット：<span class="bold-time ${entry.checkitCompleted ? 'done' : ''}">${entry.checkit}</span></p>
+              <div class="button-group">
+                <button class="complete-btn" onclick="completeRest(${entry.id})">箸完了</button>
+                <button class="complete-btn" onclick="completeCheckit(${entry.id})">Q完了</button>
+                <button class="undo-btn" onclick="undoCompletion(${entry.id}, 'rest')">箸解除</button>
+                <button class="undo-btn" onclick="undoCompletion(${entry.id}, 'checkit')">Q解除</button>
+                <button class="delete-btn" onclick="deleteEntry(${entry.id})">削除</button>
+              </div>
+            `;
+          } else {
+            div.innerHTML += `<p style="color:#aaa;">まだ登録されていません</p>`;
+          }
+
+          grid.appendChild(div);
+        });
+      });
+    }
+
+    function deleteEntry(id) {
+      data = data.filter(e => e.id !== id);
+      localStorage.setItem("scheduleData", JSON.stringify(data));
+      updateDisplay();
+    }
+
+    function completeRest(id) {
+      const entry = data.find(e => e.id === id);
+      if (entry) {
+        entry.restCompleted = true;
+        localStorage.setItem("scheduleData", JSON.stringify(data));
+        updateDisplay();
+      }
+    }
+
+    function completeCheckit(id) {
+      const entry = data.find(e => e.id === id);
+      if (entry) {
+        entry.checkitCompleted = true;
+        localStorage.setItem("scheduleData", JSON.stringify(data));
+        updateDisplay();
+      }
+    }
+
+    function undoCompletion(id, type) {
+      const entry = data.find(e => e.id === id);
+      if (entry) {
+        if (type === 'rest') entry.restCompleted = false;
+        if (type === 'checkit') entry.checkitCompleted = false;
+        localStorage.setItem("scheduleData", JSON.stringify(data));
+        updateDisplay();
+      }
+    }
+
+    if (Notification.permission !== "granted") {
+      Notification.requestPermission();
+    }
+
+    updateDisplay();
+  </script>
+</body>
+</html>
