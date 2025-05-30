@@ -18,20 +18,6 @@
       padding: 30px;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-    input, button {
-      padding: 8px;
-      font-size: 14px;
-      margin: 8px;
-      width: 45%;
-      box-sizing: border-box;
-    }
-    button {
-      cursor: pointer;
-      background-color: #6db4f7;
-      color: white;
-      border: none;
-      border-radius: 4px;
-    }
     #board {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -45,25 +31,27 @@
       min-height: 140px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       position: relative;
-      transition: background-color 0.3s ease;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+      cursor: pointer;
     }
     .room.empty {
       background: #eee;
     }
     .room.rest-expired {
-      background-color: #fcf8e3; /* 黄色っぽい */
+      background-color: #fcf8e3;
       border-left: 5px solid #f39c12;
     }
     .room.checkit-expired {
-      background-color: #d5eaf8; /* 青っぽい */
+      background-color: #d5eaf8;
       border-left: 5px solid #3498db;
     }
     .room.rest-and-checkit-expired {
-      background-color: #f5d6d6; /* 赤っぽい */
+      background-color: #f5d6d6;
       border-left: 5px solid #e74c3c;
+    }
+    .room.blank {
+      background: transparent;
+      box-shadow: none;
+      pointer-events: none;
     }
     h2.room-number {
       margin: 0 0 10px 0;
@@ -106,33 +94,78 @@
     }
     .btn.undo {
       background-color: #aaa;
-      color: #fff;
     }
     .btn.delete {
       background-color: #e74c3c;
     }
-    /* 空白用の透明の部屋 */
-    .room.blank {
-      background: transparent;
-      box-shadow: none;
-      pointer-events: none;
+    /* モーダル */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 10;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: #fff;
+      margin: 15% auto;
+      padding: 20px;
+      border-radius: 8px;
+      width: 300px;
+      text-align: center;
+    }
+    .modal input[type="time"], .modal select {
+      width: 80%;
+      padding: 8px;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+    .modal button {
+      padding: 8px 14px;
+      margin: 5px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .modal .save-btn {
+      background-color: #3498db;
+      color: #fff;
+    }
+    .modal .cancel-btn {
+      background-color: #aaa;
+      color: #fff;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>卓番タイムスケジュール</h1>
-    <p>卓番と開始時間を入力してください</p>
-    <input type="text" id="tableNumberInput" placeholder="卓番" />
-    <input type="time" id="timeInput" />
-    <br />
-    <button onclick="onUserStart()">追加</button>
-
+    <p>各卓をクリックして開始時間を設定してください</p>
     <div id="board"></div>
   </div>
 
+  <!-- モーダル -->
+  <div id="timeModal" class="modal">
+    <div class="modal-content">
+      <h2 id="modalTitle">卓番設定</h2>
+      <select id="modalType">
+        <option value="course">コース</option>
+        <option value="drink">単品・飲放</option>
+      </select>
+      <br />
+      <input type="time" id="modalTime" />
+      <br />
+      <button class="save-btn" onclick="saveModalTime()">設定</button>
+      <button class="cancel-btn" onclick="closeModal()">キャンセル</button>
+    </div>
+  </div>
+
   <script>
-    // 卓番配置の行列に対応する配列（空白はnull）
     const tableLayout = [
       [1, 2, 3],
       [4, 11, 12],
@@ -145,82 +178,70 @@
     ];
 
     let data = JSON.parse(localStorage.getItem("scheduleData")) || [];
-    let audioContext;
+    let selectedTable = null;
 
-    // フォーマット関数（Date→HH:MM）
     function formatTime(date) {
-      const h = date.getHours().toString().padStart(2, "0");
-      const m = date.getMinutes().toString().padStart(2, "0");
-      return `${h}:${m}`;
-    }
-
-    // 初期化
-    function initAudioContext() {
-      if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      }
+      return date.toTimeString().slice(0,5);
     }
 
     function playDingSound() {
-    const audio = new Audio("https://takumi-999.github.io/toritest/ding.mp3");
-    audio.play();
-  }
-
-    // 追加処理
-    function onUserStart() {
-      initAudioContext();
-      const tableInput = document.getElementById("tableNumberInput").value.trim();
-      const timeInput = document.getElementById("timeInput").value;
-
-      // 卓番・時間が両方空欄の場合：ダミーデータ追加→即削除
-      if (!tableInput && !timeInput) {
-        const dummyId = Date.now();
-        const dummyStart = new Date();
-        dummyStart.setHours(0, 0, 0, 0); // 00:00
-        const dummyRest = new Date(dummyStart.getTime() + 75 * 60 * 1000); // 75分後
-        const dummyCheck = new Date(dummyStart.getTime() + 90 * 60 * 1000); // 90分後
-
-        const dummy = {
-          id: dummyId,
-          table: "50",
-          start: "00:00",
-          rest: formatTime(dummyRest),
-          checkit: formatTime(dummyCheck),
-          restTime: dummyRest.getTime(),
-          checkitTime: dummyCheck.getTime(),
-          restCompleted: false,
-          checkitCompleted: false
-        };
-
-        data.push(dummy);
-        localStorage.setItem("scheduleData", JSON.stringify(data));
-        updateDisplay();
-
-        setTimeout(() => {
-          deleteEntry(dummyId);
-        }, 100);
-
-        return;
-      }
-
-      // 片方だけ空欄の場合は何もしない
-      if (!tableInput || !timeInput) return;
-
-      addEntry(tableInput, timeInput);
+      const audio = new Audio("https://takumi-999.github.io/toritest/ding.mp3");
+      audio.play();
     }
 
-    // 新規データ追加
-    function addEntry(tableNumber, time) {
+    function scheduleNotificationWithEarlySound(message, delay) {
+      if (delay <= 0) {
+        playDingSound();
+        if (Notification.permission === "granted") new Notification(message);
+        updateDisplay();
+        return;
+      }
+      if (delay > 1000) {
+        setTimeout(() => playDingSound(), delay - 1000);
+      }
+      setTimeout(() => {
+        if (Notification.permission === "granted") new Notification(message);
+        updateDisplay();
+      }, delay);
+    }
+
+    function openModal(tableNumber) {
+      selectedTable = tableNumber;
+      document.getElementById("modalTitle").innerText = `卓番 ${tableNumber} の開始時間`;
+      document.getElementById("modalTime").value = "";
+      document.getElementById("modalType").value = "course";
+      document.getElementById("timeModal").style.display = "block";
+    }
+
+    function closeModal() {
+      document.getElementById("timeModal").style.display = "none";
+    }
+
+    function saveModalTime() {
+      const time = document.getElementById("modalTime").value;
+      const type = document.getElementById("modalType").value;
+      if (!time || !selectedTable) return;
+
       const [hour, minute] = time.split(":").map(Number);
       const baseDate = new Date();
       baseDate.setHours(hour, minute, 0, 0);
 
-      const restDate = new Date(baseDate.getTime() + 75 * 60 * 1000); // 75分後
-      const checkitDate = new Date(baseDate.getTime() + 90 * 60 * 1000); // 90分後
+      let restOffset, checkitOffset;
+      if (type === "course") {
+        restOffset = 75 * 60000;   // 1時間15分
+        checkitOffset = 90 * 60000; // 1時間30分
+      } else { // drink
+        restOffset = 60 * 60000;   // 1時間
+        checkitOffset = 90 * 60000; // 1時間30分
+      }
+
+      const restDate = new Date(baseDate.getTime() + restOffset);
+      const checkitDate = new Date(baseDate.getTime() + checkitOffset);
 
       const entry = {
         id: Date.now(),
-        table: tableNumber,
+        table: selectedTable.toString(),
+        type: type,
         start: time,
         rest: formatTime(restDate),
         checkit: formatTime(checkitDate),
@@ -230,71 +251,46 @@
         checkitCompleted: false
       };
 
-      // すでに同じtable番号のデータがあれば上書き
-      const existingIndex = data.findIndex(d => d.table === tableNumber);
-      if (existingIndex >= 0) {
-        data[existingIndex] = entry;
+      const index = data.findIndex(d => d.table === entry.table);
+      if (index >= 0) {
+        data[index] = entry;
       } else {
         data.push(entry);
       }
+
       localStorage.setItem("scheduleData", JSON.stringify(data));
+      scheduleNotificationWithEarlySound(`卓番 ${selectedTable}：箸休めの時間です`, entry.restTime - Date.now());
+      scheduleNotificationWithEarlySound(`卓番 ${selectedTable}：チェックイットの時間です`, entry.checkitTime - Date.now());
       updateDisplay();
-
-      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：箸休めの時間です`, entry.restTime - Date.now());
-      scheduleNotificationWithEarlySound(`卓番 ${tableNumber}：チェックイットの時間です`, entry.checkitTime - Date.now());
-
-      // 入力欄クリア
-      document.getElementById("tableNumberInput").value = "";
-      document.getElementById("timeInput").value = "";
+      closeModal();
     }
 
-    // 通知と効果音セット（1秒前に効果音）
-    function scheduleNotificationWithEarlySound(message, delay) {
-      if (delay <= 0) {
-        playDingSound();
-        if (Notification.permission === "granted") {
-          new Notification(message);
-        }
-        updateDisplay();
-        return;
+    function confirmDelete(id) {
+      if (confirm("本当にこのデータを削除しますか？")) {
+        deleteEntry(id);
       }
-      if (delay > 1000) {
-        setTimeout(() => playDingSound(), delay - 1000);
-      }
-      setTimeout(() => {
-        if (Notification.permission === "granted") {
-          new Notification(message);
-        }
-        updateDisplay();
-      }, delay);
     }
 
-    // 削除
     function deleteEntry(id) {
       data = data.filter(entry => entry.id !== id);
       localStorage.setItem("scheduleData", JSON.stringify(data));
       updateDisplay();
     }
 
-    // 箸休め完了
     function completeRest(id) {
       const entry = data.find(e => e.id === id);
-      if (!entry) return;
-      entry.restCompleted = true;
+      if (entry) entry.restCompleted = true;
       localStorage.setItem("scheduleData", JSON.stringify(data));
       updateDisplay();
     }
 
-    // チェックイット完了
     function completeCheckit(id) {
       const entry = data.find(e => e.id === id);
-      if (!entry) return;
-      entry.checkitCompleted = true;
+      if (entry) entry.checkitCompleted = true;
       localStorage.setItem("scheduleData", JSON.stringify(data));
       updateDisplay();
     }
 
-    // 完了解除
     function undoCompletion(id, type) {
       const entry = data.find(e => e.id === id);
       if (!entry) return;
@@ -304,88 +300,66 @@
       updateDisplay();
     }
 
-    // 画面表示更新
     function updateDisplay() {
       const board = document.getElementById("board");
       board.innerHTML = "";
-
       const now = Date.now();
+      const dataMap = Object.fromEntries(data.map(d => [d.table, d]));
 
-      // 各卓番ごとに対応するデータを探す（存在すれば入れる）
-      const dataMap = {};
-      data.forEach(d => {
-        dataMap[d.table] = d;
-      });
-
-      // 指定の卓番レイアウトを反映
       tableLayout.forEach(row => {
         row.forEach(tableNum => {
+          const div = document.createElement("div");
           if (tableNum === null) {
-            // 空白部屋（何も表示しない透明なdiv）
-            const blankDiv = document.createElement("div");
-            blankDiv.className = "room blank";
-            board.appendChild(blankDiv);
+            div.className = "room blank";
+            board.appendChild(div);
             return;
           }
 
           const entry = dataMap[tableNum];
-
-          // 部屋のdiv
-          const roomDiv = document.createElement("div");
-          roomDiv.className = "room";
+          div.className = "room";
+          div.onclick = () => openModal(tableNum);
 
           if (!entry) {
-            // データなしは空っぽ状態
-            roomDiv.classList.add("empty");
-            roomDiv.innerHTML = `<h2 class="room-number">卓番 ${tableNum}</h2><p>データ未登録</p>`;
-            board.appendChild(roomDiv);
-            return;
+            div.classList.add("empty");
+            div.innerHTML = `<h2 class="room-number">卓番 ${tableNum}</h2><p>データ未登録</p>`;
+          } else {
+            const restExpired = now > entry.restTime && !entry.restCompleted;
+            const checkitExpired = now > entry.checkitTime && !entry.checkitCompleted;
+
+            if (restExpired && checkitExpired) div.classList.add("rest-and-checkit-expired");
+            else if (restExpired) div.classList.add("rest-expired");
+            else if (checkitExpired) div.classList.add("checkit-expired");
+
+            div.innerHTML = `
+              <h2 class="room-number">卓番 ${entry.table} (${entry.type === "course" ? "コース" : "単品・飲放"})</h2>
+              <div class="time-info start">開始時間: ${entry.start}</div>
+              <div class="time-info rest ${entry.restCompleted ? "completed" : ""}">箸休め: ${entry.rest}</div>
+              <div class="time-info checkit ${entry.checkitCompleted ? "completed" : ""}">チェックイット: ${entry.checkit}</div>
+              <div class="buttons">
+                ${entry.restCompleted 
+                  ? `<button class="btn undo" onclick="event.stopPropagation(); undoCompletion(${entry.id}, 'rest')">箸休め完了取消</button>`
+                  : `<button class="btn complete-rest" onclick="event.stopPropagation(); completeRest(${entry.id})">箸休め完了</button>`
+                }
+                ${entry.checkitCompleted 
+                  ? `<button class="btn undo" onclick="event.stopPropagation(); undoCompletion(${entry.id}, 'checkit')">チェックイット完了取消</button>`
+                  : `<button class="btn complete-checkit" onclick="event.stopPropagation(); completeCheckit(${entry.id})">チェックイット完了</button>`
+                }
+                <button class="btn delete" onclick="event.stopPropagation(); confirmDelete(${entry.id})">削除</button>
+              </div>`;
           }
 
-          // 時間判定
-          const restExpired = now > entry.restTime && !entry.restCompleted;
-          const checkitExpired = now > entry.checkitTime && !entry.checkitCompleted;
-
-          // 色分けクラス
-          if (restExpired && checkitExpired) {
-            roomDiv.classList.add("rest-and-checkit-expired");
-          } else if (restExpired) {
-            roomDiv.classList.add("rest-expired");
-          } else if (checkitExpired) {
-            roomDiv.classList.add("checkit-expired");
-          }
-
-          // 中身
-          roomDiv.innerHTML = `
-            <h2 class="room-number">卓番 ${entry.table}</h2>
-            <div class="time-info start">開始時間: ${entry.start}</div>
-            <div class="time-info rest ${entry.restCompleted ? "completed" : ""}">箸休め: ${entry.rest}</div>
-            <div class="time-info checkit ${entry.checkitCompleted ? "completed" : ""}">チェックイット: ${entry.checkit}</div>
-            <div class="buttons">
-              ${entry.restCompleted 
-                ? `<button class="btn undo" onclick="undoCompletion(${entry.id}, 'rest')">箸休め完了取消</button>`
-                : `<button class="btn complete-rest" onclick="completeRest(${entry.id})">箸休め完了</button>`
-              }
-              ${entry.checkitCompleted 
-                ? `<button class="btn undo" onclick="undoCompletion(${entry.id}, 'checkit')">チェックイット完了取消</button>`
-                : `<button class="btn complete-checkit" onclick="completeCheckit(${entry.id})">チェックイット完了</button>`
-              }
-              <button class="btn delete" onclick="deleteEntry(${entry.id})">削除</button>
-            </div>
-          `;
-
-          board.appendChild(roomDiv);
+          board.appendChild(div);
         });
       });
     }
 
-    // 最初の表示・通知許可リクエスト
     window.onload = () => {
       updateDisplay();
       if (Notification.permission !== "granted" && Notification.permission !== "denied") {
         Notification.requestPermission();
       }
     };
+
     setInterval(() => {
       location.reload();
     }, 60000);
