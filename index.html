@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>今日、好きになりました。非公式ファンサイト</title>
+  <link href="https://fonts.googleapis.com/css2?family=Yomogi&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Yomogi', cursive;
+      background: linear-gradient(135deg, #ffe6f2 0%, #ffd6e8 50%, #fff0f5 100%);
+      color: #333;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    #sakura {
+      position: fixed;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .hero {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #000;
+      z-index: 1;
+    }
+
+    .hero img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.85;
+    }
+
+    /* ヘッダーの立体感を強調 */
+    .header-wrapper {
+      position: relative;
+      z-index: 2;
+    }
+
+    .header-top {
+      background: linear-gradient(to bottom, #ff99bb, #ff66a5);
+      padding: 50px 20px 40px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      position: relative;
+      text-align: center;
+      color: white;
+      z-index: 3;
+      transform: translateY(0);
+    }
+
+    .header-top h1 {
+      font-size: 2.4em;
+      margin: 0;
+      line-height: 1.2;
+      position: relative;
+      z-index: 2;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .header-top h1::before {
+      content: "今日、好きになりました。\A非公式ファンサイト";
+      white-space: pre;
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%) scale(1.01);
+      color: rgba(255, 255, 255, 0.3);
+      filter: blur(1.5px);
+      z-index: 1;
+    }
+
+    .header-top p {
+      color: #ffeaf4;
+      margin-top: 10px;
+      font-size: 1em;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+
+    .header-bottom {
+      background-color: #f78da7;
+      height: 60px;
+      padding-top: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      position: relative;
+      z-index: 4;
+      transform: translateY(-10px);
+    }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 0;
+      margin: 0;
+    }
+
+    nav a {
+      color: white;
+      margin: 5px 15px;
+      text-decoration: none;
+      font-weight: bold;
+      transition: opacity 0.3s ease;
+      position: relative;
+      padding: 0 5px;
+    }
+
+    nav a::after {
+      content: "";
+      position: absolute;
+      bottom: -3px;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: white;
+      transition: width 0.3s ease;
+    }
+
+    nav a:hover::after {
+      width: 100%;
+    }
+
+    nav a:hover {
+      opacity: 0.85;
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+    }
+
+    main {
+      padding: 0 20px 40px 20px;
+      max-width: 900px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+      background: transparent;
+    }
+
+    section {
+      margin-bottom: 50px;
+    }
+
+    h2 {
+      border-bottom: 2px solid #ff66a5;
+      padding-bottom: 5px;
+      position: relative;
+    }
+
+    h2::before {
+      content: "\1F497  ";
+    }
+
+    #about p {
+      line-height: 1.6;
+    }
+
+    #seasons ul {
+      padding-left: 1em;
+      list-style-type: disc;
+    }
+
+    #seasons ul li {
+      margin-bottom: 8px;
+    }
+
+    #seasons ul li a {
+      color: #ff66a5;
+      font-weight: bold;
+      text-decoration: none;
+    }
+
+    #seasons ul li a:hover {
+      text-decoration: underline;
+    }
+
+    .member-list {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .character-card {
+      background-color: #ffe6f2;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+      cursor: pointer;
+      transition: box-shadow 0.3s ease;
+    }
+
+    .character-card:hover {
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    }
+
+    .character-header {
+      display: flex;
+      align-items: center;
+      padding: 15px;
+      gap: 15px;
+    }
+
+    .character-header img {
+      width: 80px;
+      height: 80px;
+      border-radius: 10px;
+      object-fit: cover;
+    }
+
+    .character-info h3 {
+      margin: 0;
+      font-size: 1.2em;
+      color: #ff66a5;
+    }
+
+    .character-details {
+      display: none;
+      padding: 10px 20px 20px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .character-card.open .character-details {
+      display: block;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .character-role {
+      font-weight: bold;
+      color: #777;
+      margin-bottom: 8px;
+    }
+
+    .character-description {
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .character-quote {
+      font-style: italic;
+      color: #555;
+      background: #fff0f5;
+      padding: 8px 12px;
+      border-left: 3px solid #ff66a5;
+      border-radius: 6px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .image-gallery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .image-gallery img {
+      width: 200px;
+      height: auto;
+      border-radius: 10px;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      cursor: pointer;
+    }
+
+    .image-gallery img:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    footer {
+      background-color: #ff66a5;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      margin-top: 40px;
+      position: relative;
+      z-index: 2;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+      padding-left: 20px;
+      padding-right: 20px;
+      border-radius: 0 0 10px 10px;
+      box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="sakura"></canvas>
+
+  <div class="hero">
+    <img src="『今日、好きになりました。ニャチャン編』集合ショット_SS-1.jpg" alt="トップイメージ" />
+  </div>
+
+  <div class="header-wrapper">
+    <div class="header-top">
+      <h1>今日、好きになりました。<br>非公式ファンサイト</h1>
+      <p>“今日好き”ファンによる番組・出演者紹介サイト</p>
+    </div>
+    <div class="header-bottom">
+      <nav>
+        <a href="#about">番組について</a>
+        <a href="#seasons">シーズン紹介</a>
+        <a href="#members">出演メンバー</a>
+        <a href="#gallery">画像ギャラリー</a>
+        <a href="hatsukoi.html">ハロン編</a>
+        <a href="sotsugyou.html">卒業編2024</a>
+        <a href="nhatrang.html">プサン編</a>
+      </nav>
+    </div>
+  </div>
+
+  <main>
+    <section id="about">
+      <h2>番組について</h2>
+      <p><strong>『今日、好きになりました。』</strong>は、ABEMAで配信されている人気恋愛リアリティー番組です。高校生たちが二泊三日の旅の中で、本気の恋に向き合う姿が描かれています。</p>
+    </section>
+
+    <section id="seasons">
+      <h2>シーズン紹介</h2>
+      <ul>
+        <li><a href="hatsukoi.html">ハロン編</a></li>
+        <li><a href="sotsugyou.html">卒業編2024</a></li>
+        <li><a href="nhatrang.html">プサン編</a></li>
+        <li>...その他も随時追加予定！</li>
+      </ul>
+    </section>
+
+    <section id="members">
+      <h2>出演メンバー</h2>
+      <li>話題になった人気メンバーをピックアップして紹介します！</li>
+      <div class="member-list">
+        <div class="character-card" onclick="toggleCharacter(this)">
+          <div class="character-header">
+            <img src="monta.png" alt="もんたくん" />
+            <div class="character-info">
+              <h3>もんたくん</h3>
+            </div>
+          </div>
+          <div class="character-details">
+            <p class="character-role">ロックなビジュアルが特徴！！高身長に加えピアス７つのバンドマン</p>
+            <p class="character-description">見た目に反したギャップで視聴者の心も鷲掴み</p>
+            <p class="character-quote">「マブでラブだよね」</p>
+          </div>
+        </div>
+      </div>
+        <div class="character-card" onclick="toggleCharacter(this)">
+          <div class="character-header">
+            <img src="ayano.png" alt="あやのちゃん" />
+            <div class="character-info">
+              <h3>あやのちゃん</h3>
+            </div>
+          </div>
+          <div class="character-details">
+            <p class="character-role">ミスコンでも受賞し今では国民的アイドルの一人！</p>
+            <p class="character-description">笑顔が魅力的、持ち前の明るさで気持ちを伝える</p>
+            <p class="character-quote">「可愛いだけじゃダメですか？」</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="gallery">
+      <h2>画像ギャラリー</h2>
+      <div class="image-gallery">
+        <img src="kokuhaku.png" alt=""/>
+        <img src="inoue.png" alt="" />
+        <img src="kokuhaku2.png" alt="" />
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>このサイトは非公式ファンサイトです。画像・情報の著作権はABEMAおよび各権利者に帰属します。</p>
+  </footer>
+
+  <script>
+    function toggleCharacter(card) {
+      card.classList.toggle('open');
+    }
+
+    const canvas = document.getElementById('sakura');
+    const ctx = canvas.getContext('2d');
+    let petals = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function createPetals() {
+      for (let i = 0; i < 30; i++) {
+        petals.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          radius: Math.random() * 4 + 3,
+          speedX: Math.random() * 1 - 0.5,
+          speedY: Math.random() * 2 + 1,
+          angle: Math.random() * Math.PI * 2,
+          angleSpeed: (Math.random() * 0.02) + 0.01
+        });
+      }
+    }
+
+    function drawPetals() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(255, 182, 193, 0.7)';
+      for (let p of petals) {
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.radius, p.radius * 0.6, p.angle, 0, Math.PI * 2);
+        ctx.fill();
+        p.x += p.speedX;
+        p.y += p.speedY;
+        p.angle += p.angleSpeed;
+
+        if (p.y > canvas.height || p.x < -50 || p.x > canvas.width + 50) {
+          p.x = Math.random() * canvas.width;
+          p.y = -10;
+          p.angle = Math.random() * Math.PI * 2;
+        }
+      }
+      requestAnimationFrame(drawPetals);
+    }
+
+    createPetals();
+    drawPetals();
+  </script>
+</body>
+</html>
